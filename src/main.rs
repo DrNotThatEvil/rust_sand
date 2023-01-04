@@ -1,4 +1,4 @@
-use ggez::{Context, ContextBuilder, GameResult, timer};
+use ggez::{Context, ContextBuilder, GameResult};
 use ggez::graphics::{self, Color};
 use ggez::event::{self, EventHandler};
 use oorandom;
@@ -7,8 +7,9 @@ use oorandom;
 struct Element {
     id: u16,
     color: graphics::Color,
-    last_rand_update_nr: i32,
-    stable_time: f32
+    updated: bool,
+    move_cooldown: f32,
+    stable: bool
 }
 
 struct Chunk { 
@@ -27,12 +28,13 @@ impl Chunk {
         let air = Element {
             id: 0,
             color: graphics::Color::new(0.0, 0.0, 0.0, 1.0),
-            last_rand_update_nr: 0,
-            stable_time: 0.0
+            updated: false,
+            move_cooldown: 0.0,
+            stable: false
         };
 
-        for _y in (0..h) {
-            for _x in (0..w) {
+        for _y in 0..h {
+            for _x in 0..w {
                 field.push(air.clone());
             }
         }
@@ -48,21 +50,24 @@ impl Chunk {
         }
     }
 
-    pub fn update_water(&mut self, x: i32, y: i32, rand_fr_index: i32) { 
+    pub fn unstable_neibours(&mut self, x: i32, y: i32) { 
+
+    }
+
+    pub fn update_water(&mut self, x: i32, y: i32) { 
         let cur_index: usize =  (x + (y * self.size.0)) as usize;
         let cell: Element = self.field[cur_index];
 
-        if cell.last_rand_update_nr == rand_fr_index {
+        if cell.updated {
             // already updated
             return;
         }
 
-        self.update_sand(x, y, rand_fr_index);
+        self.update_sand(x, y);
         
         let rand_dir = self.rand.rand_range(0..2);
 
         if rand_dir == 0 {
-            println!("Left first!");
             if x > 1 {
                 // Can move left 
                 let l_index: usize = ((x-1) + (y * self.size.0)) as usize;
@@ -71,8 +76,9 @@ impl Chunk {
                 if cell_l.id == 0 {
                     // Move left below
                     self.field.swap(cur_index, l_index);
-                    self.field[l_index].last_rand_update_nr = rand_fr_index;
-                    self.field[l_index].stable_time = 0.0;
+                    self.field[l_index].updated = true;
+                    self.field[l_index].stable = false;
+                    self.field[l_index].move_cooldown = 0.0;
                     return;
                 }
             }
@@ -85,8 +91,9 @@ impl Chunk {
                 if cell_r.id == 0 {
                     // Move right below 
                     self.field.swap(cur_index, r_index);
-                    self.field[r_index].last_rand_update_nr = rand_fr_index;
-                    self.field[r_index].stable_time = 0.0;
+                    self.field[r_index].updated = true;
+                    self.field[r_index].stable = false;
+                    self.field[r_index].move_cooldown = 0.0;
                     return;
                 }
             }
@@ -99,8 +106,9 @@ impl Chunk {
                 if cell_r.id == 0 {
                     // Move right below 
                     self.field.swap(cur_index, r_index);
-                    self.field[r_index].last_rand_update_nr = rand_fr_index;
-                    self.field[r_index].stable_time = 0.0;
+                    self.field[r_index].updated = true;
+                    self.field[r_index].stable = false;
+                    self.field[r_index].move_cooldown = 0.0;
                     return;
                 }
             }
@@ -113,26 +121,29 @@ impl Chunk {
                 if cell_l.id == 0 {
                     // Move left below
                     self.field.swap(cur_index, l_index);
-                    self.field[l_index].last_rand_update_nr = rand_fr_index;
-                    self.field[l_index].stable_time = 0.0;
+                    self.field[l_index].updated = true;
+                    self.field[l_index].stable = false;
+                    self.field[l_index].move_cooldown = 0.0;
                     return;
                 }
             }
         }
 
-        if cell.last_rand_update_nr != rand_fr_index {
-            self.field[cur_index].stable_time = (cell.stable_time + 0.1).min(1.0);
+        if !cell.updated {
+            self.field[cur_index].move_cooldown += 0.25;
+            if cell.move_cooldown > 5.0 {
+                self.field[cur_index].stable = true;
+            }
         }
-
         // Could not update it 
         // Stable system?
     }
 
-    pub fn update_sand(&mut self, x: i32, y: i32, rand_fr_index: i32) {
+    pub fn update_sand(&mut self, x: i32, y: i32) {
         let cur_index: usize =  (x + (y * self.size.0)) as usize;
         let cell: Element = self.field[cur_index];
         
-        if cell.last_rand_update_nr == rand_fr_index {
+        if cell.updated {
             // already updated
             return;
         }
@@ -145,7 +156,9 @@ impl Chunk {
             if cell_below.id == 0 {
                 // Move below
                 self.field.swap(cur_index, below_index);
-                self.field[below_index].last_rand_update_nr = rand_fr_index;
+                self.field[below_index].updated = true;
+                self.field[below_index].stable = false;
+                self.field[below_index].move_cooldown = 0.0;
                 return;
             }
 
@@ -157,7 +170,9 @@ impl Chunk {
                 if cell_l_below.id == 0 {
                     // Move left below
                     self.field.swap(cur_index, below_l_index);
-                    self.field[below_l_index].last_rand_update_nr = rand_fr_index;
+                    self.field[below_l_index].updated = true;
+                    self.field[below_l_index].stable = false;
+                    self.field[below_l_index].move_cooldown = 0.0;
                     return;
                 }
             }
@@ -170,9 +185,18 @@ impl Chunk {
                 if cell_r_below.id == 0 {
                     // Move right below 
                     self.field.swap(cur_index, below_r_index);
-                    self.field[below_r_index].last_rand_update_nr = rand_fr_index;
+                    self.field[below_r_index].updated = true;
+                    self.field[below_r_index].stable = false;
+                    self.field[below_r_index].move_cooldown = 0.0;
                     return;
                 }
+            }
+        }
+
+        if !cell.updated {
+            self.field[cur_index].move_cooldown += 0.25;
+            if cell.move_cooldown > 5.0 {
+                self.field[cur_index].stable = true;
             }
         }
     }
@@ -189,27 +213,29 @@ impl Chunk {
                 }
 
                 let cur_index: usize =  (x + (y * self.size.0)) as usize;
+                self.field[cur_index].updated = false;
+
                 let cell: Element = self.field[cur_index];
-                
-                if cell.id == 1 {
-                    self.update_sand(x, y, rand_fr_nr);
+               
+                if cell.id == 1 && !cell.stable {
+                    self.update_sand(x, y);
                 }
 
-                if cell.id == 2 {
-                    self.update_water(x, y, rand_fr_nr);
+                if cell.id == 2 && !cell.stable {
+                    self.update_water(x, y);
                 }
 
                 if self.cut_timer < 150.0 {
                     if cell.id == 0 && (x > 45 && x < 55) && y == 0 {
                         self.add_timer += 0.1;
-                        println!("Timer thing: {}", self.add_timer);
 
                         if self.add_timer > 0.5 {
                             let water = Element {
                                 id: 2,
-                                color: graphics::Color::new(0.0, 0.0, 1.0, 1.0),
-                                last_rand_update_nr: rand_fr_nr,
-                                stable_time: 0.0
+                                color: graphics::Color::new(0.0, 0.25, 1.0, 1.0),
+                                updated: false,
+                                move_cooldown: 0.0,
+                                stable: false
                             };
 
                             self.field[cur_index] = water.clone();
@@ -241,6 +267,12 @@ impl Chunk {
             )
         )?;
 
+        let mut b_x_min: i32 = i32::MAX;
+        let mut b_y_min: i32 = i32::MAX;
+
+        let mut b_x_max: i32 = i32::MIN;
+        let mut b_y_max: i32 = i32::MIN;
+
         for y in 0..self.size.1 { 
             for x in 0..self.size.0 {
                 let pos = (self.pos.0 + x, self.pos.1 + y);
@@ -249,9 +281,35 @@ impl Chunk {
                 let cell: &Element = &self.field[cur_index];
 
                 let mut color = cell.color.clone();
-                color.g = cell.stable_time;
+                //color.g = cell.stable;
 
                 if cell.id > 0 {
+                    if cell.stable {
+                        b_x_min = b_x_min.min(x);
+                        b_y_min = b_y_min.min(y);
+
+                        b_x_max = b_x_max.max(x);
+                        b_y_max = b_y_max.max(y);
+                    } else {
+                        if b_x_min < i32::MAX && b_y_max > i32::MIN {
+                            println!("_b_x_min: {}, _b_y_min: {}, _b_x_max: {}, _b_y_max: {}", b_x_min, b_y_min, b_x_max, b_y_max);
+
+                            mb.rectangle(
+                                graphics::DrawMode::stroke(1.0),
+                                graphics::Rect::new_i32(
+                                    b_x_min, b_y_min, (b_x_max-b_x_min).abs(), (b_y_max-b_y_min).abs()
+                                ),
+                                graphics::Color::new(1.0, 0.0, 1.0, 1.0)
+                            )?;
+
+                            b_x_min = i32::MAX;
+                            b_y_min = i32::MAX;
+
+                            b_x_max = i32::MIN;
+                            b_y_max = i32::MIN;
+                        }
+                    }
+
                     mb.rectangle(
                         graphics::DrawMode::fill(),
                         graphics::Rect::new_i32(pos.0, pos.1, 1, 1),
