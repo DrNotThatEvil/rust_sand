@@ -1,7 +1,9 @@
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::graphics::{self, Color};
 use ggez::event::{self, EventHandler};
-use oorandom;
+use oorandom::{self, Rand32};
+
+mod grid;
 
 #[derive(Copy, Clone)]
 struct Element {
@@ -19,7 +21,7 @@ struct Chunk {
     ran: bool,
     add_timer: f32,
     cut_timer: f32,
-    rand: oorandom::Rand32,
+    rand: Rand32,
 }
 
 impl Chunk {
@@ -46,7 +48,7 @@ impl Chunk {
             ran: false,
             add_timer: 0.0,
             cut_timer: 0.0,
-            rand: oorandom::Rand32::new(4)
+            rand: Rand32::new(4)
         }
     }
 
@@ -325,17 +327,21 @@ impl Chunk {
 }
 
 struct GGSand {
-    chunks: Vec<Chunk>
+    chunks: Vec<Chunk>,
+    grid: grid::Grid,
 }
 
 impl GGSand {
-    pub fn new(ctx: &mut Context) -> GGSand {
+    pub fn new(ctx: &mut Context, rng: &mut Rand32) -> GGSand {
         let mut chunks = Vec::new();
-        let chunk: Chunk = Chunk::new(0, 0, 100, 100);
-        chunks.push(chunk);
+        //let chunk: Chunk = Chunk::new(0, 0, 100, 100);
+        //chunks.push(chunk);
+
+        let grid: grid::Grid = grid::Grid::new(0, 0, 100, 100, rng);
 
         GGSand {
-            chunks: chunks
+            chunks: chunks,
+            grid: grid,
         }
     }
 }
@@ -364,6 +370,12 @@ impl EventHandler for GGSand {
             );
         }
 
+        let grid_mesh: graphics::Mesh = self.grid.draw(ctx)?;
+        canvas.draw(
+            &grid_mesh,
+            graphics::DrawParam::default().scale([6.5, 6.5])
+        );
+ 
         canvas.finish(ctx)?;
 
         Ok(())
@@ -383,7 +395,9 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = GGSand::new(&mut ctx);
+
+    let mut rng = Rand32::new(4);
+    let my_game = GGSand::new(&mut ctx, &mut rng);
 
     // Run!
     event::run(ctx, event_loop, my_game);
