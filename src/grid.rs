@@ -1,9 +1,13 @@
+use std::f32::consts::PI;
+use std::ops::Index;
+use std::slice::SliceIndex;
+
 use ggez::{Context, GameResult};
 use ggez::graphics;
 use oorandom::Rand32;
 
 const DEFAULT_TEMP: i16 = 10;
-const DEFAULT_PRESSURE: f32 = 1.0;
+const DEFAULT_PRESSURE: f32 = 0.0;
 
 #[derive(Copy, Clone)]
 enum CellState {
@@ -66,7 +70,13 @@ impl Grid {
                     continue;
                 }
 
-                cells.push(air_cell.clone());
+                let mut air_cell_clone = air_cell.clone();
+                
+                if _x > 30 && _x < 50 && _y > 30 && _y < 50 {
+                    air_cell_clone.pressure = 3.0;
+                }
+
+                cells.push(air_cell_clone);
             }
         }
 
@@ -88,7 +98,7 @@ impl Grid {
             cell_indexes.push(self.cords_to_index(x-1, y));
         }
 
-        if x < self.size.0 {
+        if x < (self.size.0-1) {
             cell_indexes.push(self.cords_to_index(x+1, y));
         }
 
@@ -100,17 +110,56 @@ impl Grid {
             }
         }
 
-        if y < self.size.1 {
+        if y < (self.size.1-1) {
             cell_indexes.push(self.cords_to_index(x, y+1));
             
-            if x < self.size.0 {
+            if x < (self.size.0-1) {
                 cell_indexes.push(self.cords_to_index(x+1, y+1));
             }
         }
 
         return cell_indexes;
     }
-    
+   
+    pub fn update_pressure(&mut self) {
+        for y in (0..self.size.1).rev() {
+            for x in 0..self.size.0 {
+                let index = self.cords_to_index(x, y);
+                let cell = self.cells.get(index);
+                if cell.is_none() {
+                    continue;
+                }
+
+                let cell_pressure = cell.unwrap().pressure;
+                let neibourhood = self.get_neibours(x, y);
+                //neibourhood.iter().for_each(|index| println!("{}", index));
+
+                let neibourhood_size = neibourhood.len() as f32;
+                
+
+                let lower_pressure_neibours = neibourhood.iter()
+                    .filter(|index| self.cells[**index].pressure > cell_pressure);
+
+                //println!("Pressure Sum: {}", sum);
+
+                if lower_pressure_neibours. {
+                    lower_pressure_neibours.fold(0.0, |acc, index| acc + self.cells[*index].pressure);
+                    // Cell needs to equalize
+                    let div_pressure = cell_pressure / (1.0 + neibourhood_size);
+                    for neibour in neibourhood {
+                        let ncell = self.cells.get_mut(neibour);
+                        if ncell.is_some() {
+                            self.cells[neibour].pressure -= div_pressure;
+                        }
+                    }
+
+                    //let cell = self.cells.get_mut(index);
+                    self.cells[index].pressure -= div_pressure * neibourhood_size;
+                }
+            }
+        }
+    }
+
     pub fn draw(&self, ctx: &mut Context) -> GameResult<graphics::Mesh> {
         let mb = &mut graphics::MeshBuilder::new();
 
@@ -143,6 +192,14 @@ impl Grid {
                         graphics::Rect::new_i32(pos.0, pos.1, 1, 1),
                         color
                     )?;  
+                } else {
+                    let press_color = (cell.pressure.clamp(-5.0, 5.0) * (PI * 0.1)).sin();
+
+                    mb.rectangle(
+                        graphics::DrawMode::fill(),
+                        graphics::Rect::new_i32(pos.0, pos.1, 1, 1),
+                        graphics::Color::new(press_color, 0.0, -press_color, 0.75)
+                    )?; 
                 }
             }
         }

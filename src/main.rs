@@ -354,7 +354,11 @@ impl EventHandler for GGSand {
             for chunk in self.chunks.iter_mut() {
                 chunk.update(ctx);
             }
+
+            self.grid.update_pressure();
         }
+
+
 
         Ok(())
     }
