@@ -1,3 +1,5 @@
+use ggez::glam::Vec2;
+use ggez::mint::Point2;
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::graphics::{self, Color};
 use ggez::event::{self, EventHandler};
@@ -326,9 +328,16 @@ impl Chunk {
     }
 }
 
+#[derive(Copy, Clone)]
+struct MouseState {
+    cur: (f32, f32),
+    last: (f32,f32)
+}
+
 struct GGSand {
     chunks: Vec<Chunk>,
     grid: grid::Grid,
+    mouse: MouseState
 }
 
 impl GGSand {
@@ -342,6 +351,7 @@ impl GGSand {
         GGSand {
             chunks: chunks,
             grid: grid,
+            mouse: MouseState { cur: (0.0, 0.0), last: (0.0, 0.0)}
         }
     }
 }
@@ -355,7 +365,7 @@ impl EventHandler for GGSand {
                 chunk.update(ctx);
             }
 
-            self.grid.update_pressure();
+            self.grid.update_pressure(ctx);
         }
 
 
@@ -365,22 +375,53 @@ impl EventHandler for GGSand {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
+        let seconds = 1.0 / 60.0 as f32;
 
-        for chunk in self.chunks.iter() {
-            let chunk_mesh: graphics::Mesh = chunk.draw(ctx)?;
-            canvas.draw(
-                &chunk_mesh,
-                graphics::DrawParam::default().scale([6.5, 6.5])
-            );
-        }
+        let m_old = Vec2::new(self.mouse.last.0, self.mouse.last.1).round();
+        let m_new = Vec2::new(self.mouse.cur.0, self.mouse.cur.1).round();
+        let text_dest = (m_old + ((m_old - m_new) * seconds)).;
+       
+        canvas.draw(
+            &graphics::Text::new("Cool"),
+            graphics::DrawParam::from(text_dest).color(Color::WHITE)
+        );
 
         let grid_mesh: graphics::Mesh = self.grid.draw(ctx)?;
         canvas.draw(
             &grid_mesh,
-            graphics::DrawParam::default().scale([6.5, 6.5])
+            graphics::DrawParam::default().scale([5., 5.])
         );
  
+        let mb = &mut graphics::MeshBuilder::new();
+        mb.rectangle(
+            graphics::DrawMode::fill(),
+            graphics::Rect::new(text_dest.x, text_dest.y, 6.5, 6.5),
+            graphics::Color::new(1.0, 1.0, 1.0, 1.0)
+        )?; 
+
+        canvas.draw(
+            &graphics::Mesh::from_data(ctx, mb.build()),
+            graphics::DrawParam::default()
+        ); 
+
+
         canvas.finish(ctx)?;
+
+        Ok(())
+    }
+
+    fn mouse_motion_event(
+            &mut self,
+            ctx: &mut Context,
+            x: f32,
+            y: f32,
+            dx: f32,
+            dy: f32,
+        ) -> GameResult {
+        
+        let old = self.mouse.clone();
+        self.mouse.cur = (x, y);
+        self.mouse.last = old.cur;
 
         Ok(())
     }

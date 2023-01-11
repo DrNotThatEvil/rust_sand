@@ -121,7 +121,9 @@ impl Grid {
         return cell_indexes;
     }
    
-    pub fn update_pressure(&mut self) {
+    pub fn update_pressure(&mut self, ctx: &mut Context) {
+        let seconds = 1.0 / 60.0 as f32;
+
         for y in (0..self.size.1).rev() {
             for x in 0..self.size.0 {
                 let index = self.cords_to_index(x, y);
@@ -131,30 +133,39 @@ impl Grid {
                 }
 
                 let cell_pressure = cell.unwrap().pressure;
+                //if cell_pressure < 0.0 {
+                    //println!("Less: {}", cell_pressure);
+                    //continue;
+                //}
+
                 let neibourhood = self.get_neibours(x, y);
                 //neibourhood.iter().for_each(|index| println!("{}", index));
 
-                let neibourhood_size = neibourhood.len() as f32;
+                let lower_pressure_neibours: Vec<usize> = neibourhood.iter()
+                    .filter(|index| self.cells[**index].pressure < cell_pressure)
+                    .map(|&x| x)
+                    .collect::<Vec::<usize>>();
+
+                let neibourhood_size = lower_pressure_neibours.len() as f32;
                 
-
-                let lower_pressure_neibours = neibourhood.iter()
-                    .filter(|index| self.cells[**index].pressure > cell_pressure);
-
-                //println!("Pressure Sum: {}", sum);
-
-                if lower_pressure_neibours. {
-                    lower_pressure_neibours.fold(0.0, |acc, index| acc + self.cells[*index].pressure);
+                if neibourhood_size > 0.0 {
+                    // lower_pressure_neibours.iter().fold(0.0, |acc, index| acc + self.cells[*index].pressure);
                     // Cell needs to equalize
-                    let div_pressure = cell_pressure / (1.0 + neibourhood_size);
-                    for neibour in neibourhood {
+                    let div_pressure = cell_pressure / (1.0 + neibourhood_size) * (seconds * 2.0);
+                    //if cell_pressure < 0.0 {
+                    //    println!("cell_pressure: {}, Divide pressure: {}, neibourhood_size: {}", cell_pressure, div_pressure, neibourhood_size);
+                    //}
+
+                    for neibour in lower_pressure_neibours {
                         let ncell = self.cells.get_mut(neibour);
                         if ncell.is_some() {
-                            self.cells[neibour].pressure -= div_pressure;
+                            self.cells[neibour].pressure = self.cells[neibour].pressure - div_pressure;
                         }
                     }
 
+                    self.cells[index].pressure = self.cells[index].pressure - (div_pressure * neibourhood_size);
                     //let cell = self.cells.get_mut(index);
-                    self.cells[index].pressure -= div_pressure * neibourhood_size;
+                    //self.cells[index].pressure -= div_pressure * neibourhood_size;
                 }
             }
         }
