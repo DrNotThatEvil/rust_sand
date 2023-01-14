@@ -334,6 +334,15 @@ struct MouseState {
     last: (f32,f32)
 }
 
+impl MouseState {
+    pub fn new(pos: ggez::mint::Point2<f32>) -> MouseState {
+        MouseState { 
+            cur: (pos.x, pos.y),
+            last: (pos.x, pos.y) 
+        }
+    }
+}
+
 struct GGSand {
     chunks: Vec<Chunk>,
     grid: grid::Grid,
@@ -346,12 +355,13 @@ impl GGSand {
         //let chunk: Chunk = Chunk::new(0, 0, 100, 100);
         //chunks.push(chunk);
 
+        let mouse_state = MouseState::new(ctx.mouse.position());
         let grid: grid::Grid = grid::Grid::new(0, 0, 100, 100, rng);
 
         GGSand {
             chunks: chunks,
             grid: grid,
-            mouse: MouseState { cur: (0.0, 0.0), last: (0.0, 0.0)}
+            mouse: mouse_state
         }
     }
 }
@@ -377,9 +387,10 @@ impl EventHandler for GGSand {
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::BLACK);
         let seconds = 1.0 / 60.0 as f32;
 
-        let m_old = Vec2::new(self.mouse.last.0, self.mouse.last.1).round();
-        let m_new = Vec2::new(self.mouse.cur.0, self.mouse.cur.1).round();
-        let text_dest = (m_old + ((m_old - m_new) * seconds)).;
+        let m_old = Vec2::new(self.mouse.last.0, self.mouse.last.1);
+        let m_new  = Vec2::new(self.mouse.cur.0, self.mouse.cur.1);
+        let text_dest = (m_old + ((m_old - m_new) * seconds));
+        
        
         canvas.draw(
             &graphics::Text::new("Cool"),
@@ -389,21 +400,8 @@ impl EventHandler for GGSand {
         let grid_mesh: graphics::Mesh = self.grid.draw(ctx)?;
         canvas.draw(
             &grid_mesh,
-            graphics::DrawParam::default().scale([5., 5.])
-        );
- 
-        let mb = &mut graphics::MeshBuilder::new();
-        mb.rectangle(
-            graphics::DrawMode::fill(),
-            graphics::Rect::new(text_dest.x, text_dest.y, 6.5, 6.5),
-            graphics::Color::new(1.0, 1.0, 1.0, 1.0)
-        )?; 
-
-        canvas.draw(
-            &graphics::Mesh::from_data(ctx, mb.build()),
             graphics::DrawParam::default()
-        ); 
-
+        );
 
         canvas.finish(ctx)?;
 

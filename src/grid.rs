@@ -8,6 +8,7 @@ use oorandom::Rand32;
 
 const DEFAULT_TEMP: i16 = 10;
 const DEFAULT_PRESSURE: f32 = 0.0;
+const GRID_SIZE: i32 = 6;
 
 #[derive(Copy, Clone)]
 enum CellState {
@@ -123,6 +124,7 @@ impl Grid {
    
     pub fn update_pressure(&mut self, ctx: &mut Context) {
         let seconds = 1.0 / 60.0 as f32;
+        let mut count = 0;
 
         for y in (0..self.size.1).rev() {
             for x in 0..self.size.0 {
@@ -132,28 +134,32 @@ impl Grid {
                     continue;
                 }
 
+
                 let cell_pressure = cell.unwrap().pressure;
-                //if cell_pressure < 0.0 {
-                    //println!("Less: {}", cell_pressure);
-                    //continue;
-                //}
+                if cell_pressure.abs() < 0.01 {
+                    continue;
+                }
+
+                //println!("Less: {}", cell_pressure.abs());
+                let cell_pressure_rounded = (cell_pressure * 100.0).round() / 100.0;
 
                 let neibourhood = self.get_neibours(x, y);
                 //neibourhood.iter().for_each(|index| println!("{}", index));
 
                 let lower_pressure_neibours: Vec<usize> = neibourhood.iter()
-                    .filter(|index| self.cells[**index].pressure < cell_pressure)
+                    .filter(|index| ((self.cells[**index].pressure * 100.0).round() / 100.0) < cell_pressure_rounded)
                     .map(|&x| x)
                     .collect::<Vec::<usize>>();
 
                 let neibourhood_size = lower_pressure_neibours.len() as f32;
                 
                 if neibourhood_size > 0.0 {
+                    count += 1;
                     // lower_pressure_neibours.iter().fold(0.0, |acc, index| acc + self.cells[*index].pressure);
                     // Cell needs to equalize
-                    let div_pressure = cell_pressure / (1.0 + neibourhood_size) * (seconds * 2.0);
+                    let div_pressure = cell_pressure_rounded / (1.0 + neibourhood_size) * (seconds * 2.0);
                     //if cell_pressure < 0.0 {
-                    //    println!("cell_pressure: {}, Divide pressure: {}, neibourhood_size: {}", cell_pressure, div_pressure, neibourhood_size);
+                        println!("cell_pressure: {}, Divide pressure: {}, neibourhood_size: {}", cell_pressure, div_pressure, neibourhood_size);
                     //}
 
                     for neibour in lower_pressure_neibours {
@@ -163,12 +169,14 @@ impl Grid {
                         }
                     }
 
-                    self.cells[index].pressure = self.cells[index].pressure - (div_pressure * neibourhood_size);
+                    self.cells[index].pressure = cell_pressure_rounded - (div_pressure * neibourhood_size);
                     //let cell = self.cells.get_mut(index);
                     //self.cells[index].pressure -= div_pressure * neibourhood_size;
                 }
             }
         }
+
+        println!("Total cells updated: {}", count);
     }
 
     pub fn draw(&self, ctx: &mut Context) -> GameResult<graphics::Mesh> {
@@ -179,8 +187,8 @@ impl Grid {
             graphics::Rect::new_i32(
                 self.pos.0,
                 self.pos.1,
-                self.size.0,
-                self.size.1
+                self.size.0 * GRID_SIZE,
+                self.size.1 * GRID_SIZE
             ),
             graphics::Color::new(
                 1.0,
@@ -189,10 +197,31 @@ impl Grid {
                 0.25
             )
         )?;
+
+        /* 
+        let m_old = Vec2::new(self.mouse.last.0, self.mouse.last.1);
+        let m_new  = Vec2::new(self.mouse.cur.0, self.mouse.cur.1);
+        let text_dest = (m_old + ((m_old - m_new) * seconds));
+        
+       
+        mb.rectangle(
+            graphics::DrawMode::fill(),
+            graphics::Rect::new(text_dest.x, text_dest.y, 6.5, 6.5),
+            graphics::Color::new(1.0, 1.0, 1.0, 1.0)
+        )?; 
+
+        */
         
         for y in 0..self.size.1 { 
             for x in 0..self.size.0 {
-                let pos = (self.pos.0 + x, self.pos.1 + y);
+                let pos = (self.pos.0 + (x * GRID_SIZE), self.pos.1 + (y * GRID_SIZE));
+
+                let bounds = graphics::Rect::new_i32(
+                    self.pos.0 + (x * GRID_SIZE),
+                    self.pos.1 + (y * GRID_SIZE),
+                    GRID_SIZE,
+                    GRID_SIZE
+                );
                 
                 let cell: &Cell = &self.cells[self.cords_to_index(x, y)];
                 let mut color = cell.color.clone();
@@ -200,7 +229,7 @@ impl Grid {
                 if cell.id > 0 {
                     mb.rectangle(
                         graphics::DrawMode::fill(),
-                        graphics::Rect::new_i32(pos.0, pos.1, 1, 1),
+                        bounds,
                         color
                     )?;  
                 } else {
@@ -208,7 +237,7 @@ impl Grid {
 
                     mb.rectangle(
                         graphics::DrawMode::fill(),
-                        graphics::Rect::new_i32(pos.0, pos.1, 1, 1),
+                        bounds,
                         graphics::Color::new(press_color, 0.0, -press_color, 0.75)
                     )?; 
                 }
