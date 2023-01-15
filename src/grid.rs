@@ -33,7 +33,7 @@ fn get_cell_color(id: u16, rng: &mut Rand32) -> graphics::Color {
 }
 
 #[derive(Copy, Clone)]
-struct Cell {
+pub struct Cell {
     id: u16,
     pressure: f32,
     temp: i16,
@@ -92,7 +92,7 @@ impl Grid {
         return (x + (y * self.size.0)) as usize;   
     }
 
-    pub fn get_neibours(&self, x: i32, y: i32) -> Vec<usize> {
+    pub fn get_neibour_indexes(&self, x: i32, y: i32) -> Vec<usize> {
         let mut cell_indexes: Vec<usize> = Vec::new();
 
         if x > 0 {
@@ -121,8 +121,51 @@ impl Grid {
 
         return cell_indexes;
     }
-   
+
+    pub fn get_neibours(&mut self, x: i32, y: i32) -> Vec<&Cell> {
+        let indexes = self.get_neibour_indexes(x, y);
+
+        let mut cells: Vec<&Cell> = Vec::new();
+        for index in indexes.iter() {
+            cells.push(&self.cells[*index]);
+        }
+        
+        return cells;
+    }
+
+    pub fn get_mut_neibours(&mut self, x: i32, y: i32) -> Vec<&mut Cell> {
+        let indexes = self.get_neibour_indexes(x, y);
+
+        let mut cells: Vec<&mut Cell> = Vec::new();
+        for index in indexes.iter() {
+            cells.push(&mut self.cells[*index]);
+        }
+        
+        return cells;
+    }
+
+  
     pub fn update_pressure(&mut self, ctx: &mut Context) {
+        let seconds = 1.0 / 60.0 as f32;
+        
+        for y in (0..self.size.1).rev() {
+            for x in 0..self.size.0 {
+                let index = self.cords_to_index(x, y);
+                let cell = self.cells.get(index);
+                
+                if cell.is_none() {
+                    continue;
+                }
+
+                let cell_pressure = cell.unwrap().pressure;
+                let neibours = self.get_neibours(x, y).iter()
+                    .filter(|index| self.cells[**index].pressure < cell_pressure);
+
+            }
+        }
+    }
+
+    pub fn update_pressure_old(&mut self, ctx: &mut Context) {
         let seconds = 1.0 / 60.0 as f32;
         let mut count = 0;
 
